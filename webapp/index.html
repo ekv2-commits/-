@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Оплата</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--tg-theme-bg-color, #1c1c1e);
+      color: var(--tg-theme-text-color, #ffffff);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--tg-theme-secondary-bg-color, #2c2c2e);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    h1 { font-size: 20px; margin-bottom: 8px; text-align: center; }
+    p { font-size: 14px; opacity: 0.7; text-align: center; margin-bottom: 24px; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; opacity: 0.8; }
+    input {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: var(--tg-theme-bg-color, #1c1c1e);
+      color: var(--tg-theme-text-color, #fff);
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    button {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #fff);
+      font-size: 16px;
+      font-weight: 600;
+    }
+    button:disabled { opacity: 0.5; }
+    .error { color: #ff453a; font-size: 13px; margin-top: 12px; text-align: center; display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Оплата</h1>
+    <p>Введите сумму в рублях</p>
+    
+    <label>Сумма (₽)</label>
+    <input type="number" id="amount" placeholder="Например 5000" min="100" max="300000" step="1">
+    
+    <button id="payBtn">Создать платёж</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    const btn = document.getElementById('payBtn');
+    const amountInput = document.getElementById('amount');
+    const errorEl = document.getElementById('error');
+
+    btn.addEventListener('click', async () => {
+      const amount = Number(amountInput.value);
+      
+      if (!amount || amount < 100 || amount > 300000) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = 'Сумма должна быть от 100 до 300 000 ₽';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Создаём...';
+      errorEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: amount,
+            initData: tg.initData
+          })
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || 'Ошибка создания платежа');
+        }
+
+        tg.openLink(data.paymentLink);
+        tg.close();
+
+      } catch (e) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = e.message || 'Произошла ошибка';
+        btn.disabled = false;
+        btn.textContent = 'Создать платёж';
+      }
+    });
+  </script>
+</body>
+</html>
