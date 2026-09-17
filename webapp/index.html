@@ -2,116 +2,494 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, user-scalable=no"
+  >
+
   <title>Оплата</title>
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        sans-serif;
+
       background: var(--tg-theme-bg-color, #1c1c1e);
       color: var(--tg-theme-text-color, #ffffff);
+
       min-height: 100vh;
+
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
+
       padding: 20px;
     }
+
     .card {
       width: 100%;
       max-width: 360px;
-      background: var(--tg-theme-secondary-bg-color, #2c2c2e);
+
+      background:
+        var(--tg-theme-secondary-bg-color, #2c2c2e);
+
       border-radius: 16px;
+
       padding: 24px;
     }
-    h1 { font-size: 20px; margin-bottom: 8px; text-align: center; }
-    p { font-size: 14px; opacity: 0.7; text-align: center; margin-bottom: 24px; }
-    label { display: block; font-size: 13px; margin-bottom: 6px; opacity: 0.8; }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+
+      text-align: center;
+
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 14px;
+
+      opacity: 0.7;
+
+      text-align: center;
+
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+
+      font-size: 13px;
+
+      margin-bottom: 6px;
+
+      opacity: 0.8;
+    }
+
     input {
       width: 100%;
+
       padding: 14px;
+
       border: none;
+
       border-radius: 12px;
-      background: var(--tg-theme-bg-color, #1c1c1e);
-      color: var(--tg-theme-text-color, #fff);
+
+      outline: none;
+
+      background:
+        var(--tg-theme-bg-color, #1c1c1e);
+
+      color:
+        var(--tg-theme-text-color, #ffffff);
+
       font-size: 18px;
+
       margin-bottom: 20px;
     }
+
+    input::placeholder {
+      color:
+        var(--tg-theme-hint-color, #8e8e93);
+    }
+
     button {
       width: 100%;
+
       padding: 16px;
+
       border: none;
+
       border-radius: 12px;
-      background: var(--tg-theme-button-color, #2481cc);
-      color: var(--tg-theme-button-text-color, #fff);
+
+      background:
+        var(--tg-theme-button-color, #2481cc);
+
+      color:
+        var(--tg-theme-button-text-color, #ffffff);
+
       font-size: 16px;
+
       font-weight: 600;
+
+      cursor: pointer;
     }
-    button:disabled { opacity: 0.5; }
-    .error { color: #ff453a; font-size: 13px; margin-top: 12px; text-align: center; display: none; }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+
+      cursor: default;
+    }
+
+    .error {
+      display: none;
+
+      color: #ff453a;
+
+      font-size: 13px;
+
+      line-height: 18px;
+
+      text-align: center;
+
+      margin-top: 12px;
+    }
+
+    .success {
+      display: none;
+
+      color: #30d158;
+
+      font-size: 13px;
+
+      line-height: 18px;
+
+      text-align: center;
+
+      margin-top: 12px;
+    }
   </style>
 </head>
+
 <body>
+
   <div class="card">
+
     <h1>Оплата</h1>
-    <p>Введите сумму в рублях</p>
-    
-    <label>Сумма (₽)</label>
-    <input type="number" id="amount" placeholder="Например 5000" min="100" max="300000" step="1">
-    
-    <button id="payBtn">Создать платёж</button>
-    <div class="error" id="error"></div>
+
+    <p>
+      Введите сумму в рублях
+    </p>
+
+    <label for="amount">
+      Сумма (₽)
+    </label>
+
+    <input
+      type="number"
+      id="amount"
+      placeholder="Например 5000"
+      min="100"
+      max="300000"
+      step="1"
+      inputmode="numeric"
+      autocomplete="off"
+    >
+
+    <button id="payBtn">
+      Создать платёж
+    </button>
+
+    <div
+      class="error"
+      id="error"
+    ></div>
+
+    <div
+      class="success"
+      id="success"
+    >
+      Платёж создан
+    </div>
+
   </div>
 
+
   <script>
+
+    // ========================================================
+    // TELEGRAM WEB APP
+    // ========================================================
+
     const tg = window.Telegram.WebApp;
+
     tg.ready();
     tg.expand();
 
-    const btn = document.getElementById('payBtn');
-    const amountInput = document.getElementById('amount');
-    const errorEl = document.getElementById('error');
 
-    btn.addEventListener('click', async () => {
-      const amount = Number(amountInput.value);
-      
-      if (!amount || amount < 100 || amount > 300000) {
-        errorEl.style.display = 'block';
-        errorEl.textContent = 'Сумма должна быть от 100 до 300 000 ₽';
-        return;
-      }
+    // ========================================================
+    // ELEMENTS
+    // ========================================================
 
-      btn.disabled = true;
-      btn.textContent = 'Создаём...';
-      errorEl.style.display = 'none';
+    const btn =
+      document.getElementById("payBtn");
 
-      try {
-        const res = await fetch('/api/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: amount,
-            initData: tg.initData
-          })
-        });
+    const amountInput =
+      document.getElementById("amount");
 
-        const data = await res.json();
+    const errorEl =
+      document.getElementById("error");
 
-        if (!data.ok) {
-          throw new Error(data.error || 'Ошибка создания платежа');
+    const successEl =
+      document.getElementById("success");
+
+
+    // ========================================================
+    // SHOW ERROR
+    // ========================================================
+
+    function showError(message) {
+
+      errorEl.textContent = message;
+
+      errorEl.style.display = "block";
+
+      successEl.style.display = "none";
+    }
+
+
+    // ========================================================
+    // CLEAR MESSAGES
+    // ========================================================
+
+    function clearMessages() {
+
+      errorEl.style.display = "none";
+
+      successEl.style.display = "none";
+
+      errorEl.textContent = "";
+    }
+
+
+    // ========================================================
+    // CREATE PAYMENT
+    // ========================================================
+
+    btn.addEventListener(
+      "click",
+      async () => {
+
+        clearMessages();
+
+
+        // ----------------------------------------------------
+        // GET AMOUNT
+        // ----------------------------------------------------
+
+        const amount =
+          Number(amountInput.value);
+
+
+        // ----------------------------------------------------
+        // CHECK AMOUNT
+        // ----------------------------------------------------
+
+        if (
+          !Number.isInteger(amount) ||
+          amount < 100 ||
+          amount > 300000
+        ) {
+
+          showError(
+            "Сумма должна быть от 100 до 300 000 ₽"
+          );
+
+          return;
         }
 
-        tg.openLink(data.paymentLink);
-        tg.close();
 
-      } catch (e) {
-        errorEl.style.display = 'block';
-        errorEl.textContent = e.message || 'Произошла ошибка';
-        btn.disabled = false;
-        btn.textContent = 'Создать платёж';
+        // ----------------------------------------------------
+        // CHECK TELEGRAM INIT DATA
+        // ----------------------------------------------------
+
+        if (!tg.initData) {
+
+          showError(
+            "Не удалось получить данные Telegram. Откройте оплату через бота."
+          );
+
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // DISABLE BUTTON
+        // ----------------------------------------------------
+
+        btn.disabled = true;
+
+        btn.textContent =
+          "Создаём...";
+
+
+        try {
+
+          // --------------------------------------------------
+          // SEND REQUEST TO SERVER
+          // --------------------------------------------------
+
+          const response =
+            await fetch(
+              "/api/create-order",
+              {
+                method: "POST",
+
+                headers: {
+                  "Content-Type":
+                    "application/json"
+                },
+
+                body: JSON.stringify({
+                  amount: amount,
+                  initData: tg.initData
+                })
+              }
+            );
+
+
+          // --------------------------------------------------
+          // READ RESPONSE
+          // --------------------------------------------------
+
+          let data;
+
+          try {
+
+            data =
+              await response.json();
+
+          } catch (jsonError) {
+
+            throw new Error(
+              "Сервер вернул некорректный ответ"
+            );
+          }
+
+
+          // --------------------------------------------------
+          // HTTP ERROR
+          // --------------------------------------------------
+
+          if (!response.ok) {
+
+            throw new Error(
+              data.error ||
+              "Ошибка создания платежа"
+            );
+          }
+
+
+          // --------------------------------------------------
+          // SERVER ERROR
+          // --------------------------------------------------
+
+          if (!data.success) {
+
+            throw new Error(
+              data.error ||
+              "Не удалось создать платёж"
+            );
+          }
+
+
+          // --------------------------------------------------
+          // CHECK PAYMENT LINK
+          // --------------------------------------------------
+
+          if (!data.paymentLink) {
+
+            throw new Error(
+              "Ссылка на оплату не получена"
+            );
+          }
+
+
+          // --------------------------------------------------
+          // SUCCESS
+          // --------------------------------------------------
+
+          successEl.style.display =
+            "block";
+
+          btn.textContent =
+            "Открываем оплату...";
+
+
+          // --------------------------------------------------
+          // OPEN PAYMENT
+          // --------------------------------------------------
+
+          tg.openLink(
+            data.paymentLink
+          );
+
+
+          // --------------------------------------------------
+          // CLOSE WEB APP
+          // --------------------------------------------------
+
+          setTimeout(
+            () => {
+              tg.close();
+            },
+            300
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "Payment error:",
+            error
+          );
+
+
+          showError(
+            error.message ||
+            "Произошла ошибка"
+          );
+
+
+          btn.disabled =
+            false;
+
+          btn.textContent =
+            "Создать платёж";
+        }
+
       }
-    });
+    );
+
+
+    // ========================================================
+    // ENTER KEY
+    // ========================================================
+
+    amountInput.addEventListener(
+      "keydown",
+      (event) => {
+
+        if (
+          event.key === "Enter" &&
+          !btn.disabled
+        ) {
+
+          btn.click();
+        }
+
+      }
+    );
+
   </script>
+
 </body>
 </html>
