@@ -4,6 +4,7 @@ import json
 import hmac
 import hashlib
 import logging
+import asyncio
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -12,12 +13,16 @@ from aiohttp import web, ClientSession
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    WebAppInfo,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 
 
-# =========================================================
+# ============================================================
 # CONFIG
-# =========================================================
+# ============================================================
 
 load_dotenv()
 
@@ -38,9 +43,9 @@ BASE_DIR = Path(__file__).resolve().parent
 WEBAPP_DIR = BASE_DIR / "webapp"
 
 
-# =========================================================
+# ============================================================
 # LOGGING
-# =========================================================
+# ============================================================
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,9 +55,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# =========================================================
+# ============================================================
 # ENV CHECK
-# =========================================================
+# ============================================================
 
 required_variables = {
     "BOT_TOKEN": BOT_TOKEN,
@@ -63,7 +68,8 @@ required_variables = {
 }
 
 missing = [
-    name for name, value in required_variables.items()
+    name
+    for name, value in required_variables.items()
     if not value
 ]
 
@@ -74,53 +80,62 @@ if missing:
     )
 
 
-# =========================================================
+# ============================================================
 # BOT
-# =========================================================
+# ============================================================
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
-# =========================================================
+# ============================================================
 # TEMPORARY ORDERS STORAGE
-# =========================================================
+# ============================================================
 
 orders = {}
 
 
-# =========================================================
+# ============================================================
 # TELEGRAM WEBAPP INIT DATA VALIDATION
-# =========================================================
+# ============================================================
 
 def validate_telegram_init_data(init_data: str) -> dict:
-    """
-    Проверяет Telegram WebApp initData.
-    Возвращает данные пользователя.
-    """
 
     if not init_data:
         raise ValueError("initData is empty")
 
-    parsed = parse_qs(init_data, keep_blank_values=True)
+    parsed = parse_qs(
+        init_data,
+        keep_blank_values=True
+    )
 
-    received_hash = parsed.get("hash", [None])[0]
+    received_hash = parsed.get(
+        "hash",
+        [None]
+    )[0]
 
     if not received_hash:
-        raise ValueError("Telegram hash is missing")
+        raise ValueError(
+            "Telegram hash is missing"
+        )
 
     data_check_items = []
 
     for key in sorted(parsed.keys()):
+
         if key == "hash":
             continue
 
         value = parsed[key][0]
-        data_check_items.append(f"{key}={value}")
 
-    data_check_string = "\n".join(data_check_items)
+        data_check_items.append(
+            f"{key}={value}"
+        )
 
-    # Telegram WebApp secret key
+    data_check_string = "\n".join(
+        data_check_items
+    )
+
     secret_key = hmac.new(
         b"WebAppData",
         BOT_TOKEN.encode(),
@@ -133,20 +148,30 @@ def validate_telegram_init_data(init_data: str) -> dict:
         hashlib.sha256
     ).hexdigest()
 
-    if not hmac.compare_digest(calculated_hash, received_hash):
-        raise ValueError("Invalid Telegram WebApp initData")
+    if not hmac.compare_digest(
+        calculated_hash,
+        received_hash
+    ):
+        raise ValueError(
+            "Invalid Telegram WebApp initData"
+        )
 
-    user_data = parsed.get("user", [None])[0]
+    user_data = parsed.get(
+        "user",
+        [None]
+    )[0]
 
     if not user_data:
-        raise ValueError("Telegram user data missing")
+        raise ValueError(
+            "Telegram user data missing"
+        )
 
     return json.loads(user_data)
 
 
-# =========================================================
+# ============================================================
 # /START
-# =========================================================
+# ============================================================
 
 @dp.message(CommandStart())
 async def start_handler(message: types.Message):
@@ -171,15 +196,31 @@ async def start_handler(message: types.Message):
     )
 
 
-# =========================================================
+# ============================================================
+# ORDINARY MESSAGE HANDLER
+# ============================================================
+
+@dp.message()
+async def message_handler(message: types.Message):
+
+    text = message.text or ""
+
+    await message.answer(
+        "Получил сообщение: " + text
+    )
+
+
+# ============================================================
 # CREATE PAYX ORDER
-# =========================================================
+# ============================================================
 
 async def create_order(request: web.Request):
 
     try:
         data = await request.json()
+
     except Exception:
+
         return web.json_response(
             {
                 "success": False,
@@ -188,16 +229,20 @@ async def create_order(request: web.Request):
             status=400
         )
 
-    # -----------------------------------------------------
-    # AMOUNT
-    # -----------------------------------------------------
-
     try:
-        amount = int(data.get("amount", 0))
+        amount = int(
+            data.get("amount", 0)
+        )
+
     except Exception:
+
         amount = 0
 
-    if amount < MIN_AMOUNT or amount > MAX_AMOUNT:
+    if (
+        amount < MIN_AMOUNT
+        or amount > MAX_AMOUNT
+    ):
+
         return web.json_response(
             {
                 "success": False,
@@ -209,14 +254,19 @@ async def create_order(request: web.Request):
             status=400
         )
 
-    # -----------------------------------------------------
-    # TELEGRAM INIT DATA
-    # -----------------------------------------------------
-
-    init_data = data.get("initData", "")
+    init_data = data.get(
+        "initData",
+        ""
+    )
 
     try:
-        telegram_user = validate_telegram_init_data(init_data)
+
+        telegram_user = (
+            validate_telegram_init_data(
+                init_data
+            )
+        )
+
     except Exception as e:
 
         logger.warning(
@@ -227,7 +277,9 @@ async def create_order(request: web.Request):
         return web.json_response(
             {
                 "success": False,
-                "error": "Telegram authorization failed"
+                "error": (
+                    "Telegram authorization failed"
+                )
             },
             status=403
         )
@@ -235,36 +287,27 @@ async def create_order(request: web.Request):
     telegram_user_id = telegram_user.get("id")
 
     if not telegram_user_id:
+
         return web.json_response(
             {
                 "success": False,
-                "error": "Telegram user ID missing"
+                "error": (
+                    "Telegram user ID missing"
+                )
             },
             status=400
         )
-
-    # -----------------------------------------------------
-    # ORDER ID
-    # -----------------------------------------------------
 
     client_order_id = (
         f"tg_{telegram_user_id}_"
         f"{uuid.uuid4().hex[:12]}"
     )
 
-    # -----------------------------------------------------
-    # WEBHOOK URL
-    # -----------------------------------------------------
-
     webhook_url = (
         f"{request.url.origin()}"
         f"/webhook/payx"
         f"?secret={WEBHOOK_SECRET}"
     )
-
-    # -----------------------------------------------------
-    # PAYX PAYLOAD
-    # -----------------------------------------------------
 
     payload = {
         "webhook": webhook_url,
@@ -285,10 +328,6 @@ async def create_order(request: web.Request):
         amount
     )
 
-    # -----------------------------------------------------
-    # REQUEST PAYX
-    # -----------------------------------------------------
-
     try:
 
         timeout = 30
@@ -302,7 +341,9 @@ async def create_order(request: web.Request):
                 timeout=timeout
             ) as response:
 
-                response_text = await response.text()
+                response_text = (
+                    await response.text()
+                )
 
                 logger.info(
                     "PayX HTTP %s: %s",
@@ -311,32 +352,42 @@ async def create_order(request: web.Request):
                 )
 
                 try:
-                    result = json.loads(response_text)
+
+                    result = json.loads(
+                        response_text
+                    )
+
                 except Exception:
+
                     return web.json_response(
                         {
                             "success": False,
-                            "error": "PayX returned invalid JSON",
-                            "http_status": response.status
+                            "error": (
+                                "PayX returned "
+                                "invalid JSON"
+                            ),
+                            "http_status": (
+                                response.status
+                            )
                         },
                         status=502
                     )
 
-    except Exception as e:
+    except Exception:
 
-        logger.exception("PayX request failed")
+        logger.exception(
+            "PayX request failed"
+        )
 
         return web.json_response(
             {
                 "success": False,
-                "error": "Payment service unavailable"
+                "error": (
+                    "Payment service unavailable"
+                )
             },
             status=502
         )
-
-    # -----------------------------------------------------
-    # PAYX RESPONSE
-    # -----------------------------------------------------
 
     if response.status >= 400:
 
@@ -354,7 +405,9 @@ async def create_order(request: web.Request):
         return web.json_response(
             {
                 "success": False,
-                "error": "PayX rejected the order",
+                "error": (
+                    "PayX rejected the order"
+                ),
                 "details": result
             },
             status=400
@@ -362,7 +415,9 @@ async def create_order(request: web.Request):
 
     payment = result.get("payment") or {}
 
-    payment_link = payment.get("paymentLink")
+    payment_link = payment.get(
+        "paymentLink"
+    )
 
     if not payment_link:
 
@@ -374,14 +429,13 @@ async def create_order(request: web.Request):
         return web.json_response(
             {
                 "success": False,
-                "error": "Payment link was not returned by PayX"
+                "error": (
+                    "Payment link was not "
+                    "returned by PayX"
+                )
             },
             status=502
         )
-
-    # -----------------------------------------------------
-    # SAVE ORDER
-    # -----------------------------------------------------
 
     orders[client_order_id] = {
         "telegram_user_id": telegram_user_id,
@@ -404,18 +458,22 @@ async def create_order(request: web.Request):
     )
 
 
-# =========================================================
+# ============================================================
 # PAYX WEBHOOK
-# =========================================================
+# ============================================================
 
 async def payx_webhook(request: web.Request):
 
     secret = request.query.get("secret")
 
-    if not secret or not hmac.compare_digest(
-        secret,
-        WEBHOOK_SECRET
+    if (
+        not secret
+        or not hmac.compare_digest(
+            secret,
+            WEBHOOK_SECRET
+        )
     ):
+
         return web.json_response(
             {
                 "success": False,
@@ -425,7 +483,9 @@ async def payx_webhook(request: web.Request):
         )
 
     try:
+
         data = await request.json()
+
     except Exception:
 
         return web.json_response(
@@ -441,53 +501,68 @@ async def payx_webhook(request: web.Request):
         data
     )
 
-    client_order_id = data.get("clientOrderId")
-    status = str(data.get("status", "")).upper()
+    client_order_id = data.get(
+        "clientOrderId"
+    )
+
+    status = str(
+        data.get("status", "")
+    ).upper()
 
     if not client_order_id:
+
         return web.json_response(
             {
                 "success": False,
-                "error": "clientOrderId missing"
+                "error": (
+                    "clientOrderId missing"
+                )
             },
             status=400
         )
 
-    order = orders.get(client_order_id)
+    order = orders.get(
+        client_order_id
+    )
 
     if not order:
+
         logger.warning(
             "Unknown order: %s",
             client_order_id
         )
 
-        # Отвечаем 200, чтобы PayX не спамил повторными запросами
         return web.json_response(
             {
                 "success": True
             }
         )
 
-    # -----------------------------------------------------
-    # CONFIRMED
-    # -----------------------------------------------------
+    # PAYMENT CONFIRMED
 
     if status == "CONFIRMED":
 
         order["status"] = "CONFIRMED"
 
-        credited_amount = data.get("creditedAmount")
+        credited_amount = data.get(
+            "creditedAmount"
+        )
 
-        telegram_user_id = order["telegram_user_id"]
+        telegram_user_id = (
+            order["telegram_user_id"]
+        )
 
         text = (
             "✅ <b>Оплата подтверждена</b>\n\n"
-            f"Сумма: <b>{order['amount']} ₽</b>"
+            f"Сумма: "
+            f"<b>{order['amount']} ₽</b>"
         )
 
         if credited_amount is not None:
+
             text += (
-                f"\nЗачислено: <b>{credited_amount}</b>"
+                f"\nЗачислено: "
+                f"<b>{credited_amount}</b>"
             )
 
         try:
@@ -501,18 +576,23 @@ async def payx_webhook(request: web.Request):
         except Exception:
 
             logger.exception(
-                "Failed to send Telegram confirmation"
+                "Failed to send "
+                "Telegram confirmation"
             )
 
-    # -----------------------------------------------------
-    # CANCELED / FAILED
-    # -----------------------------------------------------
+    # PAYMENT FAILED
 
-    elif status in ("CANCELED", "CANCELLED", "FAILED"):
+    elif status in (
+        "CANCELED",
+        "CANCELLED",
+        "FAILED"
+    ):
 
         order["status"] = status
 
-        telegram_user_id = order["telegram_user_id"]
+        telegram_user_id = (
+            order["telegram_user_id"]
+        )
 
         try:
 
@@ -524,7 +604,8 @@ async def payx_webhook(request: web.Request):
         except Exception:
 
             logger.exception(
-                "Failed to send Telegram failure message"
+                "Failed to send "
+                "Telegram failure message"
             )
 
     else:
@@ -538,15 +619,21 @@ async def payx_webhook(request: web.Request):
     )
 
 
-# =========================================================
+# ============================================================
 # ORDER STATUS
-# =========================================================
+# ============================================================
 
-async def order_status(request: web.Request):
+async def order_status(
+    request: web.Request
+):
 
-    order_id = request.match_info.get("order_id")
+    order_id = request.match_info.get(
+        "order_id"
+    )
 
-    order = orders.get(order_id)
+    order = orders.get(
+        order_id
+    )
 
     if not order:
 
@@ -566,13 +653,17 @@ async def order_status(request: web.Request):
     )
 
 
-# =========================================================
+# ============================================================
 # WEBAPP
-# =========================================================
+# ============================================================
 
-async def webapp_handler(request: web.Request):
+async def webapp_handler(
+    request: web.Request
+):
 
-    index_file = WEBAPP_DIR / "index.html"
+    index_file = (
+        WEBAPP_DIR / "index.html"
+    )
 
     if not index_file.exists():
 
@@ -581,14 +672,18 @@ async def webapp_handler(request: web.Request):
             status=500
         )
 
-    return web.FileResponse(index_file)
+    return web.FileResponse(
+        index_file
+    )
 
 
-# =========================================================
+# ============================================================
 # HEALTH CHECK
-# =========================================================
+# ============================================================
 
-async def health(request: web.Request):
+async def health(
+    request: web.Request
+):
 
     return web.json_response(
         {
@@ -597,50 +692,69 @@ async def health(request: web.Request):
     )
 
 
-# =========================================================
+# ============================================================
 # STARTUP
-# =========================================================
+# ============================================================
 
-async def on_startup(app: web.Application):
+async def on_startup(
+    app: web.Application
+):
 
-    logger.info("Starting Telegram bot polling...")
+    logger.info(
+        "Starting Telegram bot polling..."
+    )
 
     await bot.delete_webhook(
         drop_pending_updates=True
     )
 
-    app["polling_task"] = asyncio.create_task(
-        dp.start_polling(bot)
+    app["polling_task"] = (
+        asyncio.create_task(
+            dp.start_polling(bot)
+        )
     )
 
 
-# =========================================================
+# ============================================================
 # SHUTDOWN
-# =========================================================
+# ============================================================
 
-async def on_cleanup(app: web.Application):
+async def on_cleanup(
+    app: web.Application
+):
 
-    logger.info("Stopping Telegram bot...")
+    logger.info(
+        "Stopping Telegram bot..."
+    )
 
-    task = app.get("polling_task")
+    task = app.get(
+        "polling_task"
+    )
 
     if task:
 
         task.cancel()
 
         try:
+
             await task
-        except Exception:
+
+        except asyncio.CancelledError:
+
             pass
+
+        except Exception:
+
+            logger.exception(
+                "Polling task shutdown error"
+            )
 
     await bot.session.close()
 
 
-# =========================================================
+# ============================================================
 # APPLICATION
-# =========================================================
-
-import asyncio
+# ============================================================
 
 app = web.Application()
 
@@ -669,13 +783,18 @@ app.router.add_get(
     order_status
 )
 
-app.on_startup.append(on_startup)
-app.on_cleanup.append(on_cleanup)
+app.on_startup.append(
+    on_startup
+)
+
+app.on_cleanup.append(
+    on_cleanup
+)
 
 
-# =========================================================
+# ============================================================
 # RUN
-# =========================================================
+# ============================================================
 
 if __name__ == "__main__":
 
